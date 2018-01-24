@@ -1,0 +1,122 @@
+---
+title: "Practical Machine Learning Project 02"
+author: "Bogdan Manea Tabacel"
+date: "January 24, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Sinopsis
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##Sources
+The data used for this project come from  http://groupware.les.inf.puc-rio.br/har. With many thanks for beeing so generous in allowing their data to be used for this kind of assignment.
+
+1. The training data used:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+2. The test data used:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+
+##1. First, loading the libraries needed.
+
+```{r }
+library(caret)
+library(rpart)
+library(RColorBrewer)
+library(rattle)
+library(rpart.plot)
+library(randomForest)
+library(knitr)
+library(e1071)
+library(gbm)
+library(plyr)
+```
+
+
+##Making data folder, downloading and loading the data.
+
+```{r }
+if (!file.exists("PMLdata")) {dir.create("PMLdata")}
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+trainfile <- "./PMLdata/pml-training.csv"
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+testfile <- "./PMLdata/pml-testing.csv"
+trainfile <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testfile <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+
+```
+
+##Cleaning the data
+After loading, the data must be cleaned. It contains time-related or non numerical features ( first seven colums as well) and NAs that can be removed.
+```{r }
+features <- names(testfile[,colSums(is.na(testfile)) == 0])[8:59]
+```
+
+We are using only the needed features
+```{r }
+trainfile <- trainfile [,c(features,"classe")]
+testfile <- testfile[,c(features,"problem_id")]
+dim(trainfile); dim(testfile);
+```
+
+##Dataset partitioning:
+The data slicing is needed for building the training and testing sets, for performing cross validation or boot strapping. It is done right at the beginning of prediction function creation, or in order to evaluate the prediction models.
+```{r }
+set.seed(11111)
+
+Train01 <- createDataPartition(trainfile$classe, p=0.75, list=FALSE)
+Train_A <- trainfile[Train01,]
+Test_A <- trainfile[-Train01,]
+
+dim(Train_A); dim(Test_A);
+
+```
+
+##Building and testing the prediction models.
+1. Decision Tree Model
+1.a. Building Decision Tree Model
+```{r }
+set.seed(11111)
+TreeMod <- rpart(classe ~ ., data = Train_A, method="class", control = rpart.control(method = "cv", number = 5))
+fancyRpartPlot(TreeMod)
+```
+
+1.b.Predicting with the Decision Tree Model
+```{r }
+set.seed(11111)
+
+predict_A <- predict(TreeMod, Test_A, type = "class")
+confusionMatrix(predict_A, Test_A$classe)
+```
+
+2. Random Forest 
+2.a. Building the Random Forest Model
+```{r }
+modFitRF <- randomForest(classe ~ ., data = Train_A, method = "rf", importance = T, trControl = trainControl(method = "cv", classProbs=TRUE,savePredictions=TRUE,allowParallel=TRUE, number = 10))
+
+plot(modFitRF)
+```
+
+2.b. Predicting with the Random Forest Model
+```{r }
+prediction <- predict(modFitRF, Test_A, type = "class")
+confusionMatrix(prediction, Test_A$classe)
+```
+
+##Applying the model to Testing Data
+We will apply the model to the Test Data for testing the most appropriate model, Random Forest model.
+```{r }
+predictionRF <- predict(modFitRF, testfile)
+predictionRF
+```
+
+As is seen, the Random Forest Model is better.
+It will be prepared for submission.
+
+Thank you for your time.
